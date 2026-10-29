@@ -1,0 +1,112 @@
+---
+- name: Configure web server
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install web server
+      ansible.builtin.dnf:
+        name: "{{ web_server_package }}"
+        state: present
+      tags:
+        - packages
+        - setup
+
+    - name: Enable and start web server
+      ansible.builtin.systemd:
+        name: "{{ web_server_service }}"
+        state: started
+        enabled: true
+      tags:
+        - services
+        - setup
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        shell: "{{ app_user_shell }}"
+        comment: "Application service account"
+      tags:
+        - users
+
+    - name: Configure web server content
+      tags:
+        - config
+      block:
+        - name: Deploy server configuration
+          ansible.builtin.template:
+            src: templates/info.conf.j2
+            dest: /etc/httpd/conf.d/info.conf
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Restart Apache
+
+        - name: Verify Apache configuration syntax
+          ansible.builtin.command:
+            cmd: httpd -t
+          changed_when: false
+
+      rescue:
+        - name: Log configuration failure
+          ansible.builtin.debug:
+            msg: >
+              WARNING: Web server configuration failed on {{ inventory_hostname }}.
+              Error: {{ ansible_failed_result.msg | default('Unknown error') }}.
+              The previous working configuration has been preserved.
+
+      always:
+        - name: Ensure Apache is running regardless
+          ansible.builtin.systemd:
+            name: "{{ web_server_service }}"
+            state: started
+
+    - name: Install firewalld
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+      tags:
+        - packages
+        - firewall
+
+    - name: Enable and start firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+      tags:
+        - services
+        - firewall
+
+    - name: Check open firewall ports
+      ansible.builtin.command:
+        cmd: "firewall-cmd --query-port={{ item }}"
+      loop: "{{ firewall_ports }}"
+      register: port_check
+      changed_when: false
+      failed_when: false
+      tags:
+        - firewall
+
+    - name: Open firewall ports
+      ansible.builtin.command:
+        cmd: "firewall-cmd --permanent --add-port={{ item.item }}"
+      loop: "{{ port_check.results }}"
+      when: item.rc != 0
+      register: firewall_result
+      changed_when: item.rc != 0
+      tags:
+        - firewall
+
+    - name: Reload firewall
+      ansible.builtin.command:
+        cmd: firewall-cmd --reload
+      when: firewall_result is defined and firewall_result.changed
+      tags:
+        - firewall
+
+  handlers:
+    - name: Restart Apache
+      ansible.builtin.systemd:
+        name: "{{ web_server_service }}"
+        state: restarted

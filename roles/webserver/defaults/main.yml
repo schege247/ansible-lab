@@ -1,0 +1,21 @@
+---
+# User-configurable defaults
+
+# Web server settings
+http_port: 80
+https_port: 443
+
+# Application user
+app_user: appuser
+app_user_shell: /bin/bash
+
+# Firewall ports to open
+firewall_ports:
+  - "{{ http_port }}/tcp"
+  - "{{ https_port }}/tcp"
+
+# Site information (used in templates)
+site_name: "Default Site"
+
+# Whether to seed a custom index page
+deploy_custom_index: true

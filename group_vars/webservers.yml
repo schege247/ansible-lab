@@ -1,0 +1,5 @@
+---
+http_port: 8080
+site_name: "AAP Lab Site"
+app_user: appuser
+app_user_shell: /bin/bash

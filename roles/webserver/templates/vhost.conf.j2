@@ -1,0 +1,17 @@
+# Managed by Ansible - do not edit manually
+# Role: webserver
+# Host: {{ ansible_facts['hostname'] }}
+# Generated: {{ ansible_facts['date_time']['date'] }}
+
+<VirtualHost *:{{ http_port }}>
+    ServerName {{ ansible_facts['fqdn'] }}
+    DocumentRoot {{ web_server_document_root }}
+
+    <Directory {{ web_server_document_root }}>
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    ErrorLog logs/{{ site_name | lower | replace(' ', '_') }}_error.log
+    CustomLog logs/{{ site_name | lower | replace(' ', '_') }}_access.log combined
+</VirtualHost>

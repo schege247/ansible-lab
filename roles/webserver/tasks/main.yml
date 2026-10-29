@@ -1,0 +1,117 @@
+---
+- name: Install web server
+  ansible.builtin.dnf:
+    name: "{{ web_server_package }}"
+    state: present
+  tags:
+    - packages
+    - setup
+
+- name: Enable and start web server
+  ansible.builtin.systemd:
+    name: "{{ web_server_service }}"
+    state: started
+    enabled: true
+  tags:
+    - services
+    - setup
+
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    shell: "{{ app_user_shell }}"
+    comment: "Application service account"
+  tags:
+    - users
+
+- name: Set timezone to UTC
+  community.general.timezone:
+    name: UTC
+  tags:
+    - config
+
+- name: Configure web server
+  tags:
+    - config
+  block:
+    - name: Deploy virtual host configuration
+      ansible.builtin.template:
+        src: vhost.conf.j2
+        dest: "{{ web_server_config_dir }}/vhost.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart web server
+
+    - name: Verify web server configuration syntax
+      ansible.builtin.command:
+        cmd: httpd -t
+      changed_when: false
+
+  rescue:
+    - name: Log configuration failure
+      ansible.builtin.debug:
+        msg: >
+          WARNING: Web server configuration failed on {{ inventory_hostname }}.
+          The previous working configuration has been preserved.
+
+  always:
+    - name: Ensure web server is running
+      ansible.builtin.systemd:
+        name: "{{ web_server_service }}"
+        state: started
+
+- name: Deploy custom index page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ web_server_document_root }}/index.html"
+    owner: "{{ web_server_user }}"
+    group: "{{ web_server_group }}"
+    mode: "0644"
+  when: deploy_custom_index
+  tags:
+    - config
+
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+  tags:
+    - packages
+    - firewall
+
+- name: Enable and start firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+  tags:
+    - services
+    - firewall
+
+- name: Check open firewall ports
+  ansible.builtin.command:
+    cmd: "firewall-cmd --query-port={{ item }}"
+  loop: "{{ firewall_ports }}"
+  register: port_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - firewall
+
+- name: Open firewall ports
+  ansible.builtin.command:
+    cmd: "firewall-cmd --permanent --add-port={{ item.item }}"
+  loop: "{{ port_check.results }}"
+  when: item.rc != 0
+  register: firewall_result
+  changed_when: item.rc != 0
+  tags:
+    - firewall
+
+- name: Reload firewall
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload
+  when: firewall_result is defined and firewall_result.changed
+  tags:
+    - firewall

@@ -1,0 +1,17 @@
+---
+ansible-navigator:
+  mode: stdout
+
+  execution-environment:
+    image: ghcr.io/ansible-community/community-ee-minimal:latest
+    pull:
+      policy: missing
+    container-engine: podman
+    volume-mounts:
+      - src: "${HOME}/.ansible/collections"
+        dest: /usr/share/ansible/collections
+        options: ro
+
+  playbook-artifact:
+    enable: true
+    save-as: "{playbook_dir}/artifacts/{playbook_name}-{time_stamp}.json"

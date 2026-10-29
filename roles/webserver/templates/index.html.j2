@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head><title>{{ site_name }}</title></head>
+<body>
+  <h1>{{ site_name }}</h1>
+  <p>Host: {{ ansible_facts['fqdn'] }}</p>
+  <p>OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</p>
+  <p>IP: {{ ansible_facts['default_ipv4']['address'] }}</p>
+  <p>Managed by Ansible</p>
+</body>
+</html>
